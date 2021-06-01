@@ -1,4 +1,4 @@
-original:
+Original:
 https://github.com/jam1garner/mscdec
 
 Can't fork 2 versions, so this is made
