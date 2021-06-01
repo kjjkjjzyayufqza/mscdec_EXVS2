@@ -1,3 +1,8 @@
+original:
+https://github.com/jam1garner/mscdec
+
+Can't fork 2 versions, so this is made
+
 # mscdec
 
 MSC bytecode to C Decompiler
