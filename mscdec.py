@@ -6,6 +6,8 @@ from disasmlib import disasm as mscsb_disasm
 from disasmlib import Label, ScriptRef
 import operator, os, timeit
 import math
+import logging
+import re
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -765,9 +767,9 @@ def main(args):
     xmlPath = args.xmlPath if args.xmlPath != None else getXmlInfoPath()
     xmlInfo = MscXmlInfo(xmlPath)
 
-    print("Analyzing...")
+    logging.info("Analyzing...")
     mscFile = mscsb_disasm(args.file)
-    print("Decompiling...")
+    logging.info("Decompiling...")
 
     globalVarDecls = getGlobalVars(mscFile)
     if args.assumeCharStd:
@@ -807,6 +809,88 @@ def main(args):
         with open(args.filename if args.filename != None else (os.path.basename(os.path.splitext(args.file)[0]) + '.c'), "w") as f:
             printC(globalVarDecls, funcs, f)
 
+# 定义一个上下文管理器来重定向输出
+class RedirectStdoutToFile:
+    def __init__(self, filename):
+        self.filename = filename
+        self.original_stdout = sys.stdout
+
+    def __enter__(self):
+        self.file = open(self.filename, 'a')  # 以追加模式打开文件
+        sys.stdout = self.file  # 重定向标准输出
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        sys.stdout.close()  # 关闭文件
+        sys.stdout = self.original_stdout  # 恢复标准输出
+
+
+def handle_exvs2_pointer_funcs(args):
+    # check the output.c file, find the functions index string "func_241(0x6d00aeaa" only do when have this string
+    # 1. read your output.c file => rename args.file to .c extension
+    file_name = os.path.basename(os.path.splitext(args.file)[0]) + '.c'
+    print("file_name: ", file_name)
+    with open(file_name, 'r', encoding='utf-8') as f:
+        content = f.readlines()
+    
+    with open("log.txt", "r") as log:
+        log_content = log.readlines()
+        
+    data_block = []
+    
+    # 2. find the function index string
+    func_index = "func_241(0x6d00aeaa"
+    line_count = 0
+    for line in content:
+        line_count += 1
+        # 3. start replace the function pointer to the real function name
+        # e.g func_241(0x6d00aeaa, 0xf805); => find 0xf805 in log.txt, get the function name, the log like [func_name: func_%i, pointer: %i]
+        # use 0xf805 + 0x30 = 0xf835 and convert it to decimal => 63541 then find in the log.txt and get the function_name
+        # so the result will be func_241(0x6d00aeaa, func_name);
+        # 3.1 Locate to the function and start read line by line
+        if func_index in line:
+            for current_index in range(line_count - 1, len(content)):
+                if '}' in content[current_index]:
+                    break
+                original_line = content[current_index]
+                # 3.2 Find the pointer in the line
+                pointer = re.search(r'func_241\(\s*0x[0-9a-fA-F]+,\s*(0x[0-9a-fA-F]+)\s*\);', original_line)
+                if(pointer):
+                    # 3.3 Get the pointer value and + 0x30
+                    pointer_value = int(pointer.group(1), 16) + 0x30
+                    print("pointer_value: ", pointer_value)
+                    # 3.4 Find the function name by pointer value
+                    for log_line in log_content:
+                        if str(pointer_value) in log_line:
+                            function_name = re.search(r'func_name: (\w+), pointer: \d+', log_line).group(1)
+                            # 3.5 Replace the pointer to the function name, only replace the 2 arguments function
+                            # e.g func_241(0x6d00aeaa, 0xf805); => func_241(0x6d00aeaa, func_1);
+                            # e.g func_241(0x9cf36e1b, 0xf94d); => func_241(0x9cf36e1b, func_2);
+                            replaced_str = re.sub(
+                                r'(func_241\(\s*0x[0-9a-fA-F]+,\s*)0x[0-9a-fA-F]+(\s*\);)',
+                                r'\1' + function_name + r'\2',
+                                original_line)
+                            break
+                    data_block.append([content[current_index], replaced_str])
+
+    # 4. Write the replaced content to the file
+    with open(file_name, 'w', encoding='utf-8') as f:
+        for line in content:
+            for data in data_block:
+                if data[0] in line:
+                    line = data[1]
+            f.write(line)
+    print("EXVS2 Function pointer replaced successfully!")
+
+# 设置日志配置
+logging.basicConfig(
+    level=logging.INFO,  # 设置日志级别
+    format='%(message)s',  # 日志格式
+    handlers=[
+        logging.FileHandler('log.txt',mode='w'),  # 输出到文件
+        logging.StreamHandler()  # 输出到控制台
+    ]
+)
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="Decompile MSC bytecode to C")
     parser.add_argument('file', type=str, help='file to decompile')
@@ -818,3 +902,6 @@ if __name__ == "__main__":
     main(parser.parse_args())
     end = timeit.default_timer()
     print('Execution completed in %f seconds' % (end - start))
+    handle_exvs2_pointer_funcs(parser.parse_args())
+
+

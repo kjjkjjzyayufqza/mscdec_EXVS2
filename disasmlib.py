@@ -8,6 +8,7 @@ import sys, os, time, os.path, timeit
 from argparse import ArgumentParser
 from struct import unpack, pack
 from math import isnan
+import logging
 
 scriptNames = {}
 scriptOffsets = []
@@ -49,7 +50,7 @@ def updateScriptReference(popped, index, scriptName):
                 if not popped[index].parameters[1] in scriptCalledVars[scriptName]:
                     scriptCalledVars[scriptName].append(popped[index].parameters[1])
     except:
-        print(scriptName)
+        logging.info(scriptName)
         raise
 
 funcName = "a"
@@ -68,7 +69,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
     
     scriptName = scriptNames[script.bounds[0]]
     if scriptName != funcName:
-        print(''.join([funcName, " iterated ", str(iteration), " times"]))
+        logging.info(''.join([funcName, " iterated ", str(iteration), " times"]))
         funcName = scriptName
         iteration = 0
     else:
@@ -96,7 +97,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                 #if the command is a function call
                 if script[i].command in [0x2f, 0x30, 0x31]:
                     updateScriptReference(popped, 0, scriptName)
-                #if the command is a printf
+                #if the command is a logging.infof
                 if script[i].command == 0x2c and popped[-1].command in [0xA, 0xD]:
                     if type(popped[-1].parameters[0]) != str:
                         popped[-1].parameters[0] = mscFile.strings[popped[-1].parameters[0]]
@@ -110,7 +111,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                                 if x.parameters[0] > 0x50: #ignore first few func where it might be wrongly identified as a reference. Might be wrong and we need to investigate manually 
                                     updateScriptReference(popped, poppedIndex, scriptName)
                             except TypeError:
-                                print("Ignore Script Ref for x.parameters[0]")
+                                logging.info("Ignore Script Ref for x.parameters[0]")
                         poppedIndex = poppedIndex + 1
                 #If gv16 flag is enabled and it is setting GlobalVar16
                 if script[i].command == 0x1C and script[i].parameters[0] == 0x1: #and gvIsOffset[script[i].parameters[1]]:
@@ -144,7 +145,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                 endOfBlock = jumpIndex
                 if script[jumpIndex - 1].command in [4, 5, 0x36] and iteration < 100000:
                     if iteration == 10000 :
-                        print(''.join(["iteration exceeded 10000, aborting recursive search"]))
+                        logging.info(''.join(["iteration exceeded 10000, aborting recursive search"]))
                         raise Exception("iteration exceeded 10000, aborting recursive search")
                     endOfBlock = script.getIndexOfInstruction(script[jumpIndex - 1].parameters[0])
                     if iteration >= 999: # i dont know how to fix it, so i just [endOfBlock - depth] to avoid infinite loop

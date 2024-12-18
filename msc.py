@@ -7,6 +7,7 @@ from sys import version_info
 isPython3 = version_info >= (3,)
 assert isPython3 #If this fails switch to python 3
 import struct, tempfile
+import logging
 
 MSC_MAGIC = b'\xB2\xAC\xBC\xBA\xE6\x90\x32\x01\xFD\x02\x00\x00\x00\x00\x00\x00'
 
@@ -555,9 +556,8 @@ class MscFile:
         sortedScriptOffsets.sort()
         count = 0
         for i in sortedScriptOffsets:
-            #Print out func count and the offsets
-            print(count)
-            print(i)
+            #Print out func count and the pointer
+            logging.info("[func_name: func_%i, pointer: %i]" % (count, i))
             count = count + 1
 
         if f.tell() % 0x10 != 0:
