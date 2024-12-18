@@ -297,14 +297,12 @@ def getArgs(argc):
         index -= 1
         thisIndex = index
         d = decompileCmd(currentFunc[index])
-
         if type(d) == list:
             if len(d) != 0:
                 other = d[:-1] + other
                 d = d[-1]
             else:
-                print("aaa")
-
+                continue
         if ((type(currentFunc[thisIndex]) in [Command, FunctionCallGroup, IfElseIntermediate]) and currentFunc[thisIndex].pushBit) or type(currentFunc[thisIndex]) == Cast:
             args.append(d)
         else:
@@ -639,14 +637,11 @@ def pullOutGroups(commands):
                         copyElse = True
                         break
                 if copyElse:
-                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:elseLabelPos + 1]), pullOutGroups(commands[labelPosition + 1:elseLabelPos+1]))
+                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:elseLabelPos+1]), pullOutGroups(commands[labelPosition + 1:elseLabelPos+1]))
                     intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
                 else:
                     intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:labelPosition - 1]), pullOutGroups(commands[labelPosition + 1:elseLabelPos+1]))
-                    if isinstance(lastCommand(intermediate.ifCommands), WhileIntermediate):
-                        intermediate.pushBit = len(intermediate.ifCommands) > 0
-                    else:    
-                        intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
+                    intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
                 intermediate.isNot = isIfNot
                 newCommands.append(intermediate)
                 i = elseLabelPos

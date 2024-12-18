@@ -287,7 +287,7 @@ def disassembleCommands(rawCommands, startOffset):
     return commands
 
 #Thanks Triptych https://stackoverflow.com/questions/1265665/python-check-if-a-string-represents-an-int-without-using-try-except
-def RepresentsInt(s):
+def _RepresentsInt(s):
     try:
         int(s, 0)
         return True
@@ -445,6 +445,7 @@ class MscScript:
         self.cmds = disassembleCommands(f.read(end - start), start - 0x30)
 
     def getInstructionText(self, index):
+        cmds = []
         if index < 0 or index >= len(self.cmds):
             return ""
         else:
@@ -453,11 +454,14 @@ class MscScript:
     def getIndexOfInstruction(self, location):
         for i in range(len(self.cmds)):
             cmd = self.cmds[i]
+            # print("cmd.commandPosition: "+str(cmd.commandPosition))
             if cmd.commandPosition == location:
+                # print("return i: "+str(i))
                 return i
         return None
 
     def getInstructionOfIndex(self, index):
+        cmd = self.cmds[index]
         return cmd[index].commandPosition
 
     def getCommand(self, location):

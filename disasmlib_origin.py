@@ -52,28 +52,14 @@ def updateScriptReference(popped, index, scriptName):
         print(scriptName)
         raise
 
-funcName = "a"
-iteration = 0
-
 #script - mscScript object
 #startIndex - index in the script to start at, used for recursively evaluating all paths
 #stack - the current stack, blank at start of script and passed through recursively when evaluating paths
 #endPosition - when to stop searching (i.e. when the stack is empty and paths recombine)
 #depth - used to determine whether or not a path can be abandoned
 def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
-    global clearedPaths,scriptCalledVars, mscFile, funcName, iteration
-    
-    if depth > 500:
-        return False
-    
+    global clearedPaths,scriptCalledVars, mscFile
     scriptName = scriptNames[script.bounds[0]]
-    if scriptName != funcName:
-        print(''.join([funcName, " iterated ", str(iteration), " times"]))
-        funcName = scriptName
-        iteration = 0
-    else:
-        iteration = iteration + 1
-    
     if endPosition == None:
         clearedPaths = []
     try:
@@ -90,7 +76,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                     popped.append(stack.pop())
             except:
                 pass
-            
+
             #First pass
             if passCount == 0:
                 #if the command is a function call
@@ -102,18 +88,16 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                         popped[-1].parameters[0] = mscFile.strings[popped[-1].parameters[0]]
                 #if the command in a sys call
                 if script[i].command == 0x2d:
-                    #script[i].parameters[1] = sys number
-                    poppedIndex = 0
-                    for x in popped:
-                        if len(x.parameters) > 0:
-                            try:
-                                if x.parameters[0] > 0x50: #ignore first few func where it might be wrongly identified as a reference. Might be wrong and we need to investigate manually 
-                                    updateScriptReference(popped, poppedIndex, scriptName)
-                            except TypeError:
-                                print("Ignore Script Ref for x.parameters[0]")
-                        poppedIndex = poppedIndex + 1
+                    if script[i].parameters[1] == 0:
+                        updateScriptReference(popped, 0, scriptName)
+                    elif script[i].parameters[1] == 3:
+                        updateScriptReference(popped, 0, scriptName)
+                    elif script[i].parameters[1] == 0x29:
+                        updateScriptReference(popped, 1, scriptName)
+                    elif script[i].parameters[1] == 0x29:
+                        updateScriptReference(popped, 2, scriptName)
                 #If gv16 flag is enabled and it is setting GlobalVar16
-                if script[i].command == 0x1C and script[i].parameters[0] == 0x1: #and gvIsOffset[script[i].parameters[1]]:
+                if script[i].command == 0x1C and script[i].parameters[0] == 0x1 and gvIsOffset[script[i].parameters[1]]:
                     updateScriptReference(popped, 0, scriptName)
             elif passCount >= 1:
                 if script[i].command in [0x1C, 0x41] and scriptName in scriptCalledVars:
@@ -142,15 +126,9 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
             if script[i].command in [0x34, 0x35]:
                 jumpIndex = script.getIndexOfInstruction(script[i].parameters[0])
                 endOfBlock = jumpIndex
-                if script[jumpIndex - 1].command in [4, 5, 0x36] and iteration < 100000:
-                    if iteration == 10000 :
-                        print(''.join(["iteration exceeded 10000, aborting recursive search"]))
-                        raise Exception("iteration exceeded 10000, aborting recursive search")
+                if script[jumpIndex - 1].command in [4, 5, 0x36]:
                     endOfBlock = script.getIndexOfInstruction(script[jumpIndex - 1].parameters[0])
-                    if iteration >= 999: # i dont know how to fix it, so i just [endOfBlock - depth] to avoid infinite loop
-                        finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock - depth, depth+1)
-                    else:
-                        finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock, depth+1)
+                    finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock, depth+1)
                 elif len(stack) > 0:
                     finished = emuScript(script, jumpIndex, stack, passCount, jumpIndex, depth+1)
                 if not script[i].commandPosition in clearedPaths:
@@ -235,7 +213,7 @@ def disasm(fname):
     for i,script in enumerate(mscFile):
         clearedPaths = []
         emuScript(script, 0, [], 2)
-        #pickTypes(script)
+        pickTypes(script)
 
         jumpPositions = {}
         for cmd in script:
