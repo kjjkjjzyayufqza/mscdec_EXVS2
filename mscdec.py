@@ -824,11 +824,10 @@ class RedirectStdoutToFile:
         sys.stdout = self.original_stdout  # 恢复标准输出
 
 
-def handle_exvs2_pointer_funcs(args):
+def handle_func_241_pointer_funcs(file_name):
+    # this function only for handle the normal msc
     # check the output.c file, find the functions index string "func_241(0x6d00aeaa" only do when have this string
     # 1. read your output.c file => rename args.file to .c extension
-    file_name = os.path.basename(os.path.splitext(args.file)[0]) + '.c'
-    print("file_name: ", file_name)
     with open(file_name, 'r', encoding='utf-8') as f:
         content = f.readlines()
     
@@ -857,10 +856,9 @@ def handle_exvs2_pointer_funcs(args):
                 if(pointer):
                     # 3.3 Get the pointer value and + 0x30
                     pointer_value = int(pointer.group(1), 16) + 0x30
-                    print("pointer_value: ", pointer_value)
                     # 3.4 Find the function name by pointer value
                     for log_line in log_content:
-                        if str(pointer_value) in log_line:
+                        if f'pointer: {str(pointer_value)}]' in log_line:
                             function_name = re.search(r'func_name: (\w+), pointer: \d+', log_line).group(1)
                             # 3.5 Replace the pointer to the function name, only replace the 2 arguments function
                             # e.g func_241(0x6d00aeaa, 0xf805); => func_241(0x6d00aeaa, func_1);
@@ -870,6 +868,7 @@ def handle_exvs2_pointer_funcs(args):
                                 r'\1' + function_name + r'\2',
                                 original_line)
                             break
+                    print("pointer_value: ", pointer_value)
                     data_block.append([content[current_index], replaced_str])
 
     # 4. Write the replaced content to the file
@@ -879,6 +878,126 @@ def handle_exvs2_pointer_funcs(args):
                 if data[0] in line:
                     line = data[1]
             f.write(line)
+
+def handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name):
+    # this function only for handle the new version msc
+    with open(file_name, 'r', encoding='utf-8') as f:
+        content = f.readlines()
+    
+    with open("log.txt", "r") as log:
+        log_content = log.readlines()
+        
+    data_block = []
+    
+    func_index = "sys_1(0x10001, 0x10, var1, "
+    line_count = 0
+    target_func = None
+    for line in content:
+        line_count += 1
+        if func_index in line:
+            # this step we need to find the called function name
+            # e.g. sys_1(0x10001, 0x10, var1, func_981(func_872(var1, 0x2)));
+            # we need to get the func_981 and jump to func_981 and loop it again
+            target_func = re.search(r'sys_1\(0x10001, 0x10, var1, (\w+)\(', line).group(1)
+            # hardcode the target_func name to "int func_981(int arg0)"
+            target_func = "int " + target_func + "(int arg0)"
+            
+    # the second loop to find the target_func name
+    line_count = 0 # reset
+    if not target_func:
+        return
+    for line in content:
+        line_count += 1
+        if target_func in line:
+            for current_index in range(line_count - 1, len(content)):
+                if 'return var1;' in content[current_index]:
+                    break
+                # only match "var1 = 0x"
+                if 'var1 = 0x' in content[current_index]:
+                    original_line = content[current_index]
+                    pointer = re.search(r'var1 = 0x[0-9a-fA-F]+;', original_line)
+                    if(pointer):
+                        # find the pointer value and + 0x30 and format it remove ";"
+                        pointer_value = re.search(r'var1 = (0x[0-9a-fA-F]+);', original_line).group(1)
+                        pointer_value = int(pointer_value, 16) + 0x30
+                        for log_line in log_content:
+                            if f'pointer: {str(pointer_value)}]' in log_line:
+                                function_name = re.search(r'func_name: (\w+), pointer: \d+', log_line).group(1)
+                                replaced_str = re.sub(
+                                    r'(var1 = 0x[0-9a-fA-F]+;)',
+                                    r'var1 = ' + function_name + r';',
+                                    original_line)
+                                break
+                        data_block.append([content[current_index], replaced_str])
+    # write
+    with open(file_name, 'w', encoding='utf-8') as f:
+        for line in content:
+            for data in data_block:
+                if data[0] in line:
+                    line = data[1]
+            f.write(line)
+
+def handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name):
+    # this function only for handle the new version msc
+    with open(file_name, 'r', encoding='utf-8') as f:
+        content = f.readlines()
+    
+    with open("log.txt", "r") as log:
+        log_content = log.readlines()
+        
+    data_block = []
+    
+    func_index = "var3 = sys_0(0x700000, 0, var1, 0xa);"
+    line_count = 0
+    target_func = None
+    for line in content:
+        line_count += 1
+        if func_index in line:
+            # next line must be "var4 = func_870(var3);", then we need get the the func_870
+            target_func = re.search(r'var4 = (\w+)\(var3\);', content[line_count]).group(1)
+            # hardcode the target_func name to "int func_981(int arg0)"
+            target_func = "int " + target_func + "(int arg0)"
+            
+    # the second loop to find the target_func name
+    line_count = 0 # reset
+    if not target_func:
+        return
+    for line in content:
+        line_count += 1
+        if target_func in line:
+            for current_index in range(line_count - 1, len(content)):
+                if 'return var1;' in content[current_index]:
+                    break
+                # only match "return 0x"
+                if 'return 0x' in content[current_index]:
+                    original_line = content[current_index]
+                    pointer = re.search(r'return 0x[0-9a-fA-F]+;', original_line)
+                    if(pointer):
+                        # find the pointer value and + 0x30 and format it remove ";"
+                        pointer_value = re.search(r'return (0x[0-9a-fA-F]+);', original_line).group(1)
+                        pointer_value = int(pointer_value, 16) + 0x30
+                        for log_line in log_content:
+                            if f'pointer: {str(pointer_value)}]' in log_line:
+                                function_name = re.search(r'func_name: (\w+), pointer: \d+', log_line).group(1)
+                                replaced_str = re.sub(
+                                    r'(return 0x[0-9a-fA-F]+;)',
+                                    r'return ' + function_name + r';',
+                                    original_line)
+                                break
+                        data_block.append([content[current_index], replaced_str])
+    # write
+    with open(file_name, 'w', encoding='utf-8') as f:
+        for line in content:
+            for data in data_block:
+                if data[0] in line:
+                    line = data[1]
+            f.write(line)
+
+def handle_exvs2_pointer_funcs(args):
+    file_name = os.path.basename(os.path.splitext(args.file)[0]) + '.c'
+    handle_func_241_pointer_funcs(file_name)
+    handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name)
+    handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name)
     print("EXVS2 Function pointer replaced successfully!")
 
 # 设置日志配置

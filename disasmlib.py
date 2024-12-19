@@ -64,7 +64,7 @@ iteration = 0
 def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
     global clearedPaths,scriptCalledVars, mscFile, funcName, iteration
     
-    if depth > 500:
+    if depth > 990:
         return False
     
     scriptName = scriptNames[script.bounds[0]]
@@ -148,7 +148,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                         logging.info(''.join(["iteration exceeded 10000, aborting recursive search"]))
                         raise Exception("iteration exceeded 10000, aborting recursive search")
                     endOfBlock = script.getIndexOfInstruction(script[jumpIndex - 1].parameters[0])
-                    if iteration >= 999: # i dont know how to fix it, so i just [endOfBlock - depth] to avoid infinite loop
+                    if iteration >= 2000: # i dont know how to fix it, so i just [endOfBlock - depth] to avoid infinite loop
                         finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock - depth, depth+1)
                     else:
                         finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock, depth+1)
