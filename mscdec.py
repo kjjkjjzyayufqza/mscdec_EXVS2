@@ -824,14 +824,14 @@ class RedirectStdoutToFile:
         sys.stdout = self.original_stdout  # 恢复标准输出
 
 
-def handle_func_241_pointer_funcs(file_name):
+def handle_func_241_pointer_funcs(file_name, log_file):
     # this function only for handle the normal msc
     # check the output.c file, find the functions index string "func_241(0x6d00aeaa" only do when have this string
     # 1. read your output.c file => rename args.file to .c extension
     with open(file_name, 'r', encoding='utf-8') as f:
         content = f.readlines()
     
-    with open("log.txt", "r") as log:
+    with open(log_file, "r") as log:
         log_content = log.readlines()
         
     data_block = []
@@ -879,12 +879,12 @@ def handle_func_241_pointer_funcs(file_name):
                     line = data[1]
             f.write(line)
 
-def handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name):
+def handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name, log_file):
     # this function only for handle the new version msc
     with open(file_name, 'r', encoding='utf-8') as f:
         content = f.readlines()
     
-    with open("log.txt", "r") as log:
+    with open(log_file, "r") as log:
         log_content = log.readlines()
         
     data_block = []
@@ -937,12 +937,12 @@ def handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name):
                     line = data[1]
             f.write(line)
 
-def handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name):
+def handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name, log_file):
     # this function only for handle the new version msc
     with open(file_name, 'r', encoding='utf-8') as f:
         content = f.readlines()
     
-    with open("log.txt", "r") as log:
+    with open(log_file, "r") as log:
         log_content = log.readlines()
         
     data_block = []
@@ -994,21 +994,25 @@ def handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name):
             f.write(line)
 
 def handle_exvs2_pointer_funcs(args):
-    file_name = os.path.basename(os.path.splitext(args.file)[0]) + '.c'
-    handle_func_241_pointer_funcs(file_name)
-    handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name)
-    handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name)
+    file_name = args.filename or os.path.basename(os.path.splitext(args.file)[0]) + '.c'
+    log_file = args.log or 'log.txt'
+    handle_func_241_pointer_funcs(file_name, log_file)
+    handle_sys_1_0x10001_0x10_var1_pointer_funcs(file_name, log_file)
+    handle_var3_sys_0_0x700000_0_var1_0xa_pointer_funcs(file_name, log_file)
     print("EXVS2 Function pointer replaced successfully!")
 
 # 设置日志配置
-logging.basicConfig(
-    level=logging.INFO,  # 设置日志级别
-    format='%(message)s',  # 日志格式
-    handlers=[
-        logging.FileHandler('log.txt',mode='w'),  # 输出到文件
-        logging.StreamHandler()  # 输出到控制台
-    ]
-)
+def setup_logging(log_file):
+    log_file = log_file or 'log.txt'  # 如果未指定则使用默认值
+    logging.basicConfig(
+        level=logging.INFO,  # 设置日志级别
+        format='%(message)s',  # 日志格式
+        handlers=[
+            logging.FileHandler(log_file, mode='w'),  # 输出到文件
+            logging.StreamHandler()  # 输出到控制台
+        ]
+    )
+    return log_file
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Decompile MSC bytecode to C")
@@ -1017,7 +1021,9 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--split', action='store_true', help='Split to put all functions before main() into stdlib.c')
     parser.add_argument('-x', '--xmlPath', dest='xmlPath', help="Path to load overload MSC xml info")
     parser.add_argument('-c', '--assumeCharStd', dest='assumeCharStd', action='store_true', help="Assume the MSC binary is a character")
+    parser.add_argument('-log', '--log', dest='log', help="Log file to output to", default="log.txt")
     start = timeit.default_timer()
+    setup_logging(parser.parse_args().log)
     main(parser.parse_args())
     end = timeit.default_timer()
     print('Execution completed in %f seconds' % (end - start))
