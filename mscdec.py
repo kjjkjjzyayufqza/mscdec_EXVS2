@@ -1,4 +1,4 @@
-from msc import *
+from mscdec_msc import *
 from xml_info import MscXmlInfo, VariableLabel, getXmlInfoPath
 from argparse import ArgumentParser
 import ast2str as c_ast
